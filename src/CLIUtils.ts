@@ -19,7 +19,10 @@ import { readFileSync, readdirSync, lstatSync } from 'fs';
 import { join, isAbsolute, extname, relative } from 'path';
 import { pathToFileURL } from 'url';
 import { cwd } from 'process';
-import { PuppeteerRunnerOwningBrowserExtension } from '../lib/main.js';
+import {
+  PuppeteerRunnerExtension,
+  PuppeteerRunnerOwningBrowserExtension,
+} from '../lib/main.js';
 import { Browser } from 'puppeteer';
 import Table from 'cli-table3';
 import { bgGreen, bgRed, white } from 'colorette';
@@ -131,14 +134,29 @@ export function createStatusReport(results: Result[]): Table.Table {
   return table;
 }
 
+type RunOptions = {
+  log: boolean;
+  headless: boolean | 'chrome';
+  extension?: string;
+  websocket?: string;
+};
+
 export async function runFiles(
   files: string[],
-  opts: { log: boolean; headless: boolean | 'chrome'; extension?: string } = {
+  opts: RunOptions = {
     log: true,
     headless: true,
   }
 ): Promise<void> {
-  let Extension = PuppeteerRunnerOwningBrowserExtension;
+  // When 'RunOptions.websocket' is supplied, the runner attempts to connect to
+  // an existing browser instance. Otherwise, a new browser instance is created
+  // and therefore, "owned" by the runner.
+  const owningBrowser = !opts.websocket;
+
+  let Extension = owningBrowser
+    ? PuppeteerRunnerOwningBrowserExtension
+    : PuppeteerRunnerExtension;
+
   let browser: Browser | undefined;
 
   if (opts.extension) {
@@ -150,6 +168,15 @@ export async function runFiles(
       ).toString()
     );
     Extension = module.default;
+  }
+
+  const { default: puppeteer } = await import('puppeteer');
+
+  if (opts.websocket) {
+    browser = await puppeteer.connect({
+      defaultViewport: null,
+      browserWSEndpoint: opts.websocket,
+    });
   }
 
   const results: Result[] = [];
@@ -169,14 +196,17 @@ export async function runFiles(
       const recording = parse(object);
       result.title = recording.title;
 
-      const { default: puppeteer } = await import('puppeteer');
-      browser = await puppeteer.launch({
-        headless: opts.headless,
-      });
+      if (!browser) {
+        browser = await puppeteer.launch({
+          headless: opts.headless,
+        });
+      }
+
       const page = await browser.newPage();
       const extension = new Extension(browser, page);
       const runner = await createRunner(recording, extension);
       await runner.run();
+      await page.close();
       opts.log && console.log(`Finished running ${file}`);
     } catch (err) {
       opts.log && console.error(`Error running ${file}`, err);
@@ -185,8 +215,14 @@ export async function runFiles(
       result.finishedAt = new Date();
       results.push(result);
 
-      await browser?.close();
+      if (owningBrowser) {
+        await browser?.close();
+      }
     }
+  }
+
+  if (!owningBrowser) {
+    browser?.disconnect();
   }
 
   if (opts.log) {
