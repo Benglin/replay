@@ -22,6 +22,7 @@ interface Arguments {
   files: string[];
   extension?: string;
   headless?: string;
+  websocket?: string;
 }
 
 yargs(hideBin(process.argv))
@@ -33,12 +34,17 @@ yargs(hideBin(process.argv))
       const args = argv as unknown as Arguments;
       const recordingPaths = getRecordingPaths(args.files);
 
+      if (args.websocket) {
+        console.log(`Connecting to browser: ${args.websocket}`);
+      }
+
       await runFiles(recordingPaths, {
         log: true,
         headless: getHeadlessEnvVar(
           args.headless || process.env['PUPPETEER_HEADLESS']
         ),
         extension: args.extension,
+        websocket: args.websocket,
       });
     }
   )
@@ -51,5 +57,11 @@ yargs(hideBin(process.argv))
     alias: 'ext',
     type: 'string',
     description: 'Run using an extension identified by the path.',
+  })
+  .option('websocket', {
+    alias: 'ws',
+    type: 'string',
+    description:
+      'Value of "webSocketDebuggerUrl" from "http://127.0.0.1:9222/json/version"',
   })
   .parse();
