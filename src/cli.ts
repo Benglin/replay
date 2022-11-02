@@ -23,6 +23,7 @@ interface Arguments {
   extension?: string;
   headless?: string;
   websocket?: string;
+  pause?: number;
 }
 
 yargs(hideBin(process.argv))
@@ -45,6 +46,7 @@ yargs(hideBin(process.argv))
         ),
         extension: args.extension,
         websocket: args.websocket,
+        pause: args.pause,
       });
     }
   )
@@ -63,5 +65,9 @@ yargs(hideBin(process.argv))
     type: 'string',
     description:
       'Value of "webSocketDebuggerUrl" from "http://127.0.0.1:9222/json/version"',
+  })
+  .option('pause', {
+    type: 'number',
+    description: 'Duration (in milliseconds) of pause between two steps',
   })
   .parse();

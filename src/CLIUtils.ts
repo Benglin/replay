@@ -137,6 +137,7 @@ export function createStatusReport(results: Result[]): Table.Table {
 type RunOptions = {
   log: boolean;
   headless: boolean | 'chrome';
+  pause?: number;
   extension?: string;
   websocket?: string;
 };
@@ -205,6 +206,7 @@ export async function runFiles(
       const page = await browser.newPage();
       const extension = new Extension(browser, page);
       const runner = await createRunner(recording, extension);
+      runner.pause = opts.pause ?? 0;
       await runner.run();
       await page.close();
       opts.log && console.log(`Finished running ${file}`);

@@ -28,10 +28,15 @@ async function _runStepWithHooks(
   await extension.afterEachStep?.(step, flow);
 }
 
+async function _sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class Runner {
   #flow?: UserFlow;
   #extension: RunnerExtension;
   #aborted: boolean = false;
+  #pauseBetweenSteps: number = 0;
 
   /**
    * @internal
@@ -46,6 +51,10 @@ export class Runner {
 
   set flow(flow: UserFlow) {
     this.#flow = flow;
+  }
+
+  set pause(ms: number) {
+    this.#pauseBetweenSteps = ms;
   }
 
   /**
@@ -81,6 +90,9 @@ export class Runner {
       if (this.#aborted) {
         await this.#extension.afterAllSteps?.(flow);
         return false;
+      }
+      if (this.#pauseBetweenSteps > 0) {
+        await _sleep(this.#pauseBetweenSteps);
       }
       await _runStepWithHooks(this.#extension, step, flow);
     }
